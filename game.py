@@ -2,6 +2,7 @@ import ugame
 import stage
 import random
 import time
+import board
 
 
 class Ship(stage.Sprite):
@@ -38,7 +39,7 @@ class Ship(stage.Sprite):
                 sound.play(pew_sound)
         if keys & ugame.K_O:
             pause(" Pause...")
-        self.x = max(min(self.x + self.dx, 112), 0)
+        self.x = max(min(self.x + self.dx, board.DISPLAY.width - 16), 0)
         self.move(self.x, self.y)
 
 
@@ -130,12 +131,13 @@ class Aliens(stage.Grid):
         self.tick = self.left = self.right = self.descend = 0
         self.dx = 2
         self.dirty = False
+        self.alive = True
 
     def update(self):
         self.tick = (self.tick + 1) % 4
         self.layer.frame(0, 0 if self.tick >= 2 else 4)
         if self.tick in (0, 2):
-            if self.x >= 14 + self.right or self.x <= 2 - self.left:
+            if self.x >= 30 + self.right or self.x <= 2 - self.left:
                 self.y += 1
                 self.descend += 1
                 if self.descend >= 4:
@@ -145,6 +147,8 @@ class Aliens(stage.Grid):
             else:
                 self.x += self.dx
             self.move(self.x, self.y)
+
+        self.alive = sum(self.buffer) > 0
 
     def reform(self):
         self.left = 16 * 6
@@ -161,7 +165,8 @@ def pause(info):
     while ugame.buttons.get_pressed() & ugame.K_O:
         time.sleep(0.25)
     text.cursor(0, 0)
-    text.text(info)
+    tw, th = text.text(info)
+    text.move((board.DISPLAY.width - tw) / 2, (board.DISPLAY.height - th) / 2)
     game.render_block()
     while not ugame.buttons.get_pressed() & ugame.K_O:
         time.sleep(0.25)
@@ -173,14 +178,14 @@ def pause(info):
 
 tiles = stage.Bank.from_bmp16("tiles.bmp")
 while True:
-    space = stage.Grid(tiles)
+    space = stage.Grid(tiles, width=board.DISPLAY.width // 16, height=board.DISPLAY.width // 16)
     aliens = Aliens()
     game = stage.Stage(ugame.display, 12)
     for y in range(8):
         for x in range(8):
             space.tile(x, y, 1)
     for i in range(8):
-        space.tile(random.randint(0, 7), random.randint(0, 7),
+        space.tile(random.randint(0, space.width - 1), random.randint(0, space.height - 1),
                    random.randint(2, 3))
     aliens.move(8, 17)
     saucer = Saucer()
@@ -190,7 +195,6 @@ while True:
     missile1 = Missile(1)
     missile2 = Missile(2)
     text = stage.Text(9, 1)
-    text.move(28, 60)
     sprites = [saucer, bomb, ship, missile, missile1, missile2]
     game.layers = [text] + sprites + [aliens, space]
     game.render_block()
@@ -199,7 +203,7 @@ while True:
     sound = ugame.audio
     sound.mute(False)
 
-    while aliens.left + aliens.right < 112 and aliens.y < 80 and not ship.dead:
+    while aliens.alive and aliens.y < 80 and not ship.dead:
         for sprite in sprites:
             sprite.update()
         aliens.update()
